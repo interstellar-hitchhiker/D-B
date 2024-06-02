@@ -1,1 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drum and Bass Radio</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            text-align: center;
+        }
+
+        button, input {
+            margin-top: 10px;
+        }
+
+        input[type="range"] {
+            width: 200px;
+        }
+
+        #visualizer-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            background: black;
+        }
+
+        #exitFullscreenButton {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Drum and Bass Radio</h1>
+        <audio id="radio" src="https://bassdrive.radioca.st/;stream.mp3" type="audio/mpeg"></audio>
+        <button id="playPauseButton">Play</button>
+        <input type="range" id="volumeControl" min="0" max="1" step="0.01">
+        <button id="fullscreenButton">Toggle Visualizer</button>
+    </div>
+    <div id="visualizer-container">
+        <button id="exitFullscreenButton">Exit Fullscreen</button>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let audio = document.getElementById('radio');
+
+        document.getElementById('playPauseButton').addEventListener('click', () => {
+            if (audio.paused) {
+                audio.play().then(() => {
+                    document.getElementById('playPauseButton').textContent = 'Pause';
+                }).catch(error => console.error("Audio play error: ", error));
+            } else {
+                audio.pause();
+                document.getElementById('playPauseButton').textContent = 'Play';
+            }
+        });
+
+        document.getElementById('volumeControl').addEventListener('input', (event) => {
+            audio.volume = event.target.value;
+        });
+
+        document.getElementById('fullscreenButton').addEventListener('click', () => {
+            let visualizerContainer = document.getElementById('visualizer-container');
+            visualizerContainer.style.display = 'block';
+            initVisualizer();
+            if (visualizerContainer.requestFullscreen) {
+                visualizerContainer.requestFullscreen();
+            } else if (visualizerContainer.mozRequestFullScreen) {
+                visualizerContainer.mozRequestFullScreen();
+            } else if (visualizerContainer.webkitRequestFullscreen) {
+                visualizerContainer.webkitRequestFullscreen();
+            } else if (visualizerContainer.msRequestFullscreen) {
+                visualizerContainer.msRequestFullscreen();
+            }
+        });
+
+        document.getElementById('exitFullscreenButton').addEventListener('click', () => {
+            exitFullscreen();
+        });
+
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) {
+                document.getElementById('visualizer-container').style.display = 'none';
+            }
+        });
+
+        function exitFullscreen() {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.mozCancelFullScreen) {
+                document.mozCancelFullScreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) {
+                document.msExitFullscreen();
+            }
+        }
+
+        function initVisualizer() {
+            let visualizerContainer = document.getElementById('visualizer-container');
+            while (visualizerContainer.firstChild) {
+                visualizerContainer.removeChild(visualizerContainer.firstChild);
+            }
+
+            let scene = new THREE.Scene();
+            let camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            let renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            visualizerContainer.appendChild(renderer.domElement);
+
+            let geometry = new THREE.TorusKnotGeometry(10, 3, 100, 16);
+            let material = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true });
+            let mesh = new THREE.Mesh(geometry, material);
+            scene.add(mesh);
+
+            let shapes = [
+                new THREE.TorusKnotGeometry(10, 3, 100, 16),
+                new THREE.BoxGeometry(15, 15, 15),
+                new THREE.SphereGeometry(10, 32, 32),
+                new THREE.ConeGeometry(10, 20, 32),
+                new THREE.DodecahedronGeometry(10)
+            ];
+            let currentShapeIndex = 0;
+
+            function morphShape() {
+                currentShapeIndex = (currentShapeIndex + 1) % shapes.length;
+                mesh.geometry.dispose();
+                mesh.geometry = shapes[currentShapeIndex];
+            }
+
+            setInterval(morphShape, 5000);
+
+            let hue = 0;
+            let scale = 1;
+            let increasing = true;
+
+            camera.position.z = 50;
+
+            renderer.autoClear = false;
+            renderer.setClearColor(0x000000, 0.05);
+
+            let direction = new THREE.Vector3(1, 1, 0).normalize();
+            let speed = 0.2;
+
+            // Dynamic lighting
+            let pointLight = new THREE.PointLight(0xffffff, 1, 100);
+            pointLight.position.set(50, 50, 50);
+            scene.add(pointLight);
+
+            let ambientLight = new THREE.AmbientLight(0x404040);
+            scene.add(ambientLight);
+
+            let light = new THREE.PointLight(0xff0000, 2, 50);
+            scene.add(light);
+
+            // Particle system
+            let particleGeometry = new THREE.BufferGeometry();
+            let particleCount = 500;
+            let positions = new Float32Array(particleCount * 3);
+            for (let i = 0; i < particleCount; i++) {
+                positions[i * 3] = Math.random() * 100 - 50;
+                positions[i * 3 + 1] = Math.random() * 100 - 50;
+                positions[i * 3 + 2] = Math.random() * 100 - 50;
+            }
+            particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            let particleMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5 });
+            let particleSystem = new THREE.Points(particleGeometry, particleMaterial);
+            scene.add(particleSystem);
+
+            function animate() {
+                requestAnimationFrame(animate);
+
+                hue += 0.001;
+                material.color.setHSL(hue % 1, 0.5, 0.5);
+
+                light.position.x = mesh.position.x;
+                light.position.y = mesh.position.y;
+                light.position.z = mesh.position.z;
+
+                if (increasing) {
+                    scale += 0.01;
+                    if (scale > 1.5) increasing = false;
+                } else {
+                    scale -= 0.01;
+                    if (scale < 0.5) increasing = true;
+                }
+                mesh.scale.set(scale, scale, scale);
+
+                mesh.rotation.x += 0.01;
+                mesh.rotation.y += 0.01;
+
+                mesh.position.add(direction.clone().multiplyScalar(speed));
+                if (mesh.position.x > window.innerWidth / 40 || mesh.position.x < -window.innerWidth / 40) direction.x = -direction.x;
+                if (mesh.position.y > window.innerHeight / 40 || mesh.position.y < -window.innerHeight / 40) direction.y = -direction.y;
+
+                // Update particle positions for trippy effect
+                let positions = particleGeometry.attributes.position.array;
+                for (let i = 0; i < particleCount; i++) {
+                    positions[i * 3] += (Math.random() - 0.5) * 0.1;
+                    positions[i * 3 + 1] += (Math.random() - 0.5) * 0.1;
+                    positions[i * 3 + 2] += (Math.random() - 0.5) * 0.1;
+                }
+                particleGeometry.attributes.position.needsUpdate = true;
+
+                renderer.render(scene, camera);
+            }
+
+            animate();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+    </script>
+</body>
+</html>
 
